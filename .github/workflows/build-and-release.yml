@@ -75,7 +75,7 @@ jobs: # 👇 下面是具体的工作任务
                       # 如果你希望自动发布，改为 false。但谨慎操作，确保测试无误。
           prerelease: false # 是否为预发布版本
           files: | # 要上传的文件，支持 glob 模式，会把 dist/ 下的打包产物都上传
-            dist/*.exe
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.rpm
+            dist_electron/*.exe
+            dist_electron/*.AppImage
+            dist_electron/*.deb
+            dist_electron/*.rpm
