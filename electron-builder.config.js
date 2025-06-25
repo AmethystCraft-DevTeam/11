@@ -131,11 +131,6 @@ const builderOptions = {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
   },
-  publish: {
-    provider: "github",
-    repo: "voicevox",
-    vPrefixedTagName: false,
-  },
   linux: {
     artifactName: LINUX_ARTIFACT_NAME !== "" ? LINUX_ARTIFACT_NAME : undefined,
     executableName:

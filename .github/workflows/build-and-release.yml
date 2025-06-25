@@ -1,0 +1,104 @@
+# .github/workflows/build-and-release.yml
+name: Build and Release Electron App # 你的工作流名称，会显示在GitHub Actions页面
+
+on:
+  push:
+    branches:
+      - main # 当你推送到 main 分支时，触发这个工作流
+
+  # 如果你希望通过打 Tag 发布，可以改为以下配置：
+  # push:
+  #   tags:
+  #     - 'v*' # 当你打 v1.0.0, v2.0.1 等格式的 Tag 时触发
+
+  workflow_dispatch: # 允许你手动触发这个工作流，方便测试
+
+jobs: # 👇 下面是具体的工作任务
+  build-win-linux:
+    name: Build for Windows & Linux # 任务名称
+    runs-on: ubuntu-latest # 在最新的Ubuntu系统上运行此任务
+
+    steps: # 具体的步骤
+      - name: Checkout code # 拉取你的代码
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js # 设置Node.js环境
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.15 # 建议使用LTS版本，与你本地开发环境一致
+
+      - name: Install dependencies # 安装项目依赖
+        run: npm install
+
+      - name: Build for Windows and Linux # 执行之前定义的打包脚本
+        run: npm run build:win-linux
+
+      - name: Upload Windows & Linux artifacts # 将打包好的文件作为“工作流产物”上传，供后续步骤使用
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-linux-build # 产物名称
+          path: dist/ # electron-builder 默认打包好的文件都在 dist 目录
+
+  build-mac:
+    name: Build for macOS # macOS的打包任务
+    runs-on: macos-latest # macOS 平台必须在 macOS 系统上打包！
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build for macOS # 执行打包 macOS 的脚本
+        run: npm run build:mac
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-build # 产物名称
+          path: dist/
+
+  release:
+    name: Create GitHub Release and Upload Assets # 创建并上传到 GitHub Release
+    needs: [build-win-linux, build-mac] # 确保这两个打包任务都成功完成后才执行此任务
+    runs-on: ubuntu-latest # 这个任务可以在 Ubuntu 上完成
+
+    steps:
+      - name: Get package.json version # 获取 package.json 中的版本号，作为 Release 的 Tag
+        id: get_version
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
+      - name: Download Windows & Linux artifacts # 下载之前上传的 Windows 和 Linux 打包产物
+        uses: actions/download-artifact@v4
+        with:
+          name: win-linux-build
+          path: dist/ # 下载到 dist/ 目录
+
+      - name: Download macOS artifacts # 下载 macOS 打包产物
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-build
+          path: dist/ # 也下载到 dist/ 目录，因为文件名不一样，不会冲突
+
+      - name: Create Release and Upload Assets # 使用 softprops/action-gh-release 自动化创建 Release 并上传文件
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub 自动提供的 Token，有权限在你的仓库创建 Release
+        with:
+          tag_name: v${{ env.APP_VERSION }} # Release 的 Tag 名称，比如 v1.0.0
+          name: Release v${{ env.APP_VERSION }} # Release 的标题
+          draft: true # 默认创建为草稿 Release。你可以手动去 GitHub 发布它。
+                      # 如果你希望自动发布，改为 false。但谨慎操作，确保测试无误。
+          prerelease: false # 是否为预发布版本
+          files: | # 要上传的文件，支持 glob 模式，会把 dist/ 下的打包产物都上传
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.dmg
