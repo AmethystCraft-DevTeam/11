@@ -33,44 +33,18 @@ jobs: # 👇 下面是具体的工作任务
       - name: Install pnpm dependency
         run: pnpm install
 
-
       - name: Build for Windows and Linux # 执行之前定义的打包脚本
-        run: npm run build:win-linux
+        run: npm run electron:build
 
       - name: Upload Windows & Linux artifacts # 将打包好的文件作为“工作流产物”上传，供后续步骤使用
         uses: actions/upload-artifact@v4
         with:
           name: win-linux-build # 产物名称
           path: dist/ # electron-builder 默认打包好的文件都在 dist 目录
-
-  build-mac:
-    name: Build for macOS # macOS的打包任务
-    runs-on: macos-latest # macOS 平台必须在 macOS 系统上打包！
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build for macOS # 执行打包 macOS 的脚本
-        run: npm run build:mac
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-build # 产物名称
-          path: dist/
-
+          
   release:
     name: Create GitHub Release and Upload Assets # 创建并上传到 GitHub Release
-    needs: [build-win-linux, build-mac] # 确保这两个打包任务都成功完成后才执行此任务
+    needs: [build-win-linux] # 确保这两个打包任务都成功完成后才执行此任务
     runs-on: ubuntu-latest # 这个任务可以在 Ubuntu 上完成
 
     steps:
@@ -105,4 +79,3 @@ jobs: # 👇 下面是具体的工作任务
             dist/*.AppImage
             dist/*.deb
             dist/*.rpm
-            dist/*.dmg
