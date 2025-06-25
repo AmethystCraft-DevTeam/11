@@ -1,120 +1,79 @@
 # .github/workflows/build-and-release.yml
-name: Build and Release Electron App (Win/Linux)
+name: Build and Release Electron App (Win/Linux) # 你的工作流名称，会显示在GitHub Actions页面
 
 on:
   push:
+    # branches:
+    #   - main # 这个可以保留用于普通CI（比如每次提交都跑测试），但请注意，它不会触发Release。
+               # Release 只会因 Tag 触发。
+
     tags:
-      - 'v*.*.*' # 只有当你推送 v1.0.0, v2.3.4 等格式的 Tag 时，才会触发发布流程
-  workflow_dispatch:
+      - 'v*.*.*' # ⭐ 核心！只有当你推送 v1.0.0, v2.3.4 等格式的 Tag 时，才会触发完整的发布流程。
+                 # 这是自动发布 Releases 的“启动键”！
 
-# ⭐ 关键修改1：添加权限声明
-permissions:
-  contents: write # 授予写入 contents（包括 Releases）的权限
-  # issues: write # 如果Release需要关联Issue，可以加上
-  # pull-requests: write # 如果Release需要关联PR，可以加上
+  workflow_dispatch: # 允许你手动触发这个工作流，方便测试或需要手动干预发布时使用。
 
-jobs:
-  # ⭐ 新增：Windows 平台构建任务
-  build-windows:
-    name: Build for Windows
-    runs-on: windows-latest # 在最新的 Windows 系统上运行
+jobs: # 👇 下面是具体的工作任务
+  build-win-linux:
+    name: Build for Windows & Linux # 任务名称
+    runs-on: ubuntu-latest # 在最新的Ubuntu系统上运行此任务
 
-    steps:
-      - name: Checkout code
+    steps: # 具体的步骤
+      - name: Checkout code # 拉取你的代码
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Node.js # 设置Node.js环境
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
-
+          node-version: 22.x # 建议使用LTS版本，与你本地开发环境一致
+        
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Install dependencies
+      - name: Install pnpm dependency
         run: pnpm install
 
-      - name: Build Windows App
-        # 确保你的 package.json 中 'electron:build' 命令能识别并构建 Windows 目标
-        # 通常 npm run electron:build 默认会构建当前操作系统的目标
-        run: npm run electron:build -- -w # 或者确保 package.json 里有 "build": { "win": {} } 配置
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 传给 electron-builder，如果需要签名或自动更新
+      - name: Build for Windows and Linux # 执行之前定义的打包脚本
+        # 假设你的 npm run electron:build 命令会打包出 Windows 和 Linux 的文件到 dist/ 目录
+        run: npm run electron:build 
 
-      - name: Upload Windows artifacts
+      - name: Upload Windows & Linux artifacts # 将打包好的文件作为“工作流产物”上传，供后续步骤使用
         uses: actions/upload-artifact@v4
         with:
-          name: win-build # Windows 构建产物命名为 win-build
-          path: dist/ # electron-builder 的 Windows 产物通常在 dist/ 目录下
-
-  # ⭐ 新增：Linux 平台构建任务（可以保留之前的配置）
-  build-linux:
-    name: Build for Linux
-    runs-on: ubuntu-latest # 在最新的 Ubuntu 系统上运行
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build Linux App
-        # 确保你的 package.json 中 'electron:build' 命令能识别并构建 Linux 目标
-        run: npm run electron:build -- -l # 或者确保 package.json 里有 "build": { "linux": {} } 配置
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 传给 electron-builder，如果需要签名或自动更新
-
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-build # Linux 构建产物命名为 linux-build
-          path: dist/ # electron-builder 的 Linux 产物通常在 dist/ 目录下
-
+          name: win-linux-build # 产物名称
+          path: dist/ # electron-builder 默认打包好的文件都在 dist 目录（这里不变）
 
   release:
-    name: Create GitHub Release and Upload Assets
-    # ⭐ 关键修改2：确保依赖于所有构建任务
-    needs: [build-windows, build-linux]
-    runs-on: ubuntu-latest
+    name: Create GitHub Release and Upload Win/Linux Assets # 创建并上传到 GitHub Release
+    needs: [build-win-linux] # ⭐ 关键！只依赖于 Windows 和 Linux 的构建任务成功完成
+    runs-on: ubuntu-latest # 这个任务可以在 Ubuntu 上完成
+
+    # ⭐ 只有当工作流是由 Git Tag （以 'refs/tags/' 开头的引用）触发时，才执行此发布步骤。
     if: startsWith(github.ref, 'refs/tags/')
 
     steps:
-      - name: Download Windows artifacts
+      - name: Download Windows & Linux artifacts # 下载之前上传的 Windows 和 Linux 打包产物
         uses: actions/download-artifact@v4
         with:
-          name: win-build # 下载 Windows 构建产物
-          path: dist_electron/ # 放到 dist_electron/ 目录
+          name: win-linux-build
+          path: dist_electron/ # ⭐ 核心修改：下载产物到 dist_electron/ 目录
 
-      - name: Download Linux artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-build # 下载 Linux 构建产物
-          path: dist_electron/ # 也放到 dist_electron/ 目录，它们会合并在一起
 
-      - name: Create Release and Upload Assets
+      - name: Create Release and Upload Assets # 使用 softprops/action-gh-release 自动化创建 Release 并上传文件
         uses: softprops/action-gh-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub 自动提供的 Token，有权限在你的仓库创建 Release
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          # ⭐ 根据 electron-builder 实际输出的文件名和路径进行微调
-          files: |
-            dist_electron/*.exe
-            dist_electron/*.zip # 如果你构建了便携版或其他压缩包
-            dist_electron/*.AppImage
-            dist_electron/*.deb
-            dist_electron/*.rpm
-            dist_electron/*.yml # for latest.yml, latest-linux.yml (更新服务器用)
-            dist_electron/*.blockmap # for differential updates
+          tag_name: ${{ github.ref_name }} # Release 的 Tag 名称，直接使用触发它的 Git Tag 名称
+          name: Release ${{ github.ref_name }} # Release 的标题
+          draft: false # ⭐ 设为 false，表示直接发布，无需手动确认（谨慎操作，确保测试无误）
+          prerelease: false # 是否为预发布版本
+          files: | # ⭐ 核心修改：所有文件路径都改为从 dist_electron/ 开始寻找
+            dist_electron/*.exe       # Windows 可执行文件 (例如 YourApp Setup 1.0.0.exe)
+            dist_electron/*.AppImage  # Linux AppImage 文件 (例如 YourApp-1.0.0-x86_64.AppImage)
+            dist_electron/*.deb       # Linux Debian/Ubuntu 包 (例如 yourapp_1.0.0_amd64.deb)
+            dist_electron/*.rpm       # Linux RedHat/Fedora 包 (例如 yourapp-1.0.0.x86_64.rpm)
+            dist_electron/latest.yml  # 如果使用 electron-updater，这个通常是跨平台的更新入口或Windows/macOS的
+            dist_electron/latest-linux.yml # 可能由 electron-builder 为 Linux 生成的特定更新信息文件
+            dist_electron/*.yml       # 包含所有 *.yml 文件，以防万一有其他yml更新文件
+            dist_electron/*.blockmap # electron-builder 可能会生成 .blockmap 文件用于差分更新
