@@ -40,7 +40,7 @@ jobs: # 👇 下面是具体的工作任务
         uses: actions/upload-artifact@v4
         with:
           name: win-linux-build # 产物名称
-          path: dist/ # electron-builder 默认打包好的文件都在 dist 目录
+          path: dist_electron/ # electron-builder 默认打包好的文件都在 dist 目录
           
   release:
     name: Create GitHub Release and Upload Assets # 创建并上传到 GitHub Release
@@ -56,13 +56,7 @@ jobs: # 👇 下面是具体的工作任务
         uses: actions/download-artifact@v4
         with:
           name: win-linux-build
-          path: dist/ # 下载到 dist/ 目录
-
-      - name: Download macOS artifacts # 下载 macOS 打包产物
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-build
-          path: dist/ # 也下载到 dist/ 目录，因为文件名不一样，不会冲突
+          path: dist_electron/ # 下载到 dist_electron/ 目录
 
       - name: Create Release and Upload Assets # 使用 softprops/action-gh-release 自动化创建 Release 并上传文件
         uses: softprops/action-gh-release@v1
