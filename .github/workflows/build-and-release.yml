@@ -27,8 +27,15 @@ jobs: # 👇 下面是具体的工作任务
         with:
           node-version: 22.15 # 建议使用LTS版本，与你本地开发环境一致
 
-      - name: Install dependencies # 安装项目依赖
+      - name: Install dependency # 安装pnpm
         run: npm install
+        
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install pnpm dependency
+        run: pnpm install
+
 
       - name: Build for Windows and Linux # 执行之前定义的打包脚本
         run: npm run build:win-linux
